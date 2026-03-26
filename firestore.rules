@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (auth.uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, format: email)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: ['doctor'])
+    //
+    // Collection: notes
+    // Document ID: noteId (auto-generated)
+    // Fields:
+    //   - doctorId: string (required, matches auth.uid)
+    //   - patientName: string (optional)
+    //   - patientAge: string (optional)
+    //   - date: string (required, ISO 8601)
+    //   - transcription: string (optional)
+    //   - soapNote: map (required)
+    //     - subjective: string
+    //     - objective: string
+    //     - assessment: string
+    //     - plan: string
+    //   - extractedInfo: map (optional)
+    //     - symptoms: list
+    //     - duration: string
+    //     - diagnosis: string
+    //     - medications: list
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.doctorId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function validString(field, maxLen) {
+      return request.resource.data[field] is string && request.resource.data[field].size() <= maxLen;
+    }
+
+    function validOptionalString(field, maxLen) {
+      return !(field in request.resource.data) || (request.resource.data[field] is string && request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role == 'doctor' &&
+             validOptionalString('displayName', 100) &&
+             validOptionalString('photoURL', 500) &&
+             data.keys().hasOnly(['uid', 'email', 'role', 'displayName', 'photoURL']);
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['doctorId', 'date', 'soapNote']) &&
+             data.doctorId == request.auth.uid &&
+             isValidDateString(data.date) &&
+             data.soapNote is map &&
+             data.soapNote.keys().hasAll(['subjective', 'objective', 'assessment', 'plan']) &&
+             data.soapNote.subjective is string && data.soapNote.subjective.size() <= 5000 &&
+             data.soapNote.objective is string && data.soapNote.objective.size() <= 5000 &&
+             data.soapNote.assessment is string && data.soapNote.assessment.size() <= 5000 &&
+             data.soapNote.plan is string && data.soapNote.plan.size() <= 5000 &&
+             validOptionalString('patientName', 100) &&
+             validOptionalString('patientAge', 20) &&
+             validOptionalString('transcription', 20000) &&
+             data.keys().hasOnly(['doctorId', 'patientName', 'patientAge', 'date', 'transcription', 'soapNote', 'extractedInfo', 'id']);
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /notes/{noteId} {
+      allow read: if isAuthenticated() && resource.data.doctorId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidNote(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidNote(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+  }
+}

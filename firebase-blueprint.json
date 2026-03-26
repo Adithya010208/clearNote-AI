@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["doctor"] }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PatientNote": {
+      "title": "PatientNote",
+      "description": "Clinical note generated from a doctor-patient conversation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "patientAge": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "transcription": { "type": "string" },
+        "soapNote": {
+          "type": "object",
+          "properties": {
+            "subjective": { "type": "string" },
+            "objective": { "type": "string" },
+            "assessment": { "type": "string" },
+            "plan": { "type": "string" }
+          }
+        },
+        "extractedInfo": {
+          "type": "object",
+          "properties": {
+            "symptoms": { "type": "array", "items": { "type": "string" } },
+            "duration": { "type": "string" },
+            "diagnosis": { "type": "string" },
+            "medications": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "required": ["doctorId", "date", "soapNote"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/notes/{noteId}": {
+      "schema": "PatientNote",
+      "description": "Clinical notes"
+    }
+  }
+}

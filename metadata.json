@@ -1,0 +1,7 @@
+{
+  "name": "ClearNote AI",
+  "description": "AI-powered clinical note generator that transcribes doctor-patient conversations into structured SOAP notes.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
