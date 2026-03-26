@@ -10,6 +10,9 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -37,7 +40,13 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: npx cap sync android > sync_log.txt 2>&1 || (cat sync_log.txt && exit 1)
+
+      - name: Report Error
+        if: failure()
+        run: gh issue create --title "Build Failed Logs" --body "$(cat sync_log.txt)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build APK
         working-directory: ./android
